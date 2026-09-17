@@ -1,0 +1,12 @@
+apiVersion: inference.opendatahub.io/v1alpha1
+kind: ExternalProvider
+metadata:
+  name: external-provider-${EXTERNAL_MODEL}
+  namespace: llm-hosting
+spec:
+  provider: openai
+  endpoint: ${EXTERNAL_PROVIDER_HOST}
+  auth:
+    type: apikey
+    secretRef:
+      name: external-provider-api-key-${EXTERNAL_MODEL}

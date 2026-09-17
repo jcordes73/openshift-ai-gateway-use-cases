@@ -1,0 +1,18 @@
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSSubscription
+metadata:
+  annotations:
+    openshift.io/display-name: ${EXTERNAL_MODEL}
+  name: ${EXTERNAL_MODEL}
+  namespace: models-as-a-service
+spec:
+  modelRefs:
+  - name: ${EXTERNAL_MODEL}
+    namespace: llm-hosting
+    tokenRateLimits:
+    - limit: 1000
+      window: 1s
+  owner:
+    groups:
+    - name: rhods-admins
+  priority: 0

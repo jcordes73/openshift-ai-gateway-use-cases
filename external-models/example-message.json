@@ -1,0 +1,6 @@
+{
+  "model": "${EXTERNAL_MODEL_NAME}",
+  "messages": [
+    {"role": "user", "content": "Hello, world!"}
+  ]
+}

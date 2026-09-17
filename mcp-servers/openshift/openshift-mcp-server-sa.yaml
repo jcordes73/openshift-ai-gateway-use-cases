@@ -1,0 +1,21 @@
+---
+# ServiceAccount for the OpenShift MCP server
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openshift-mcp-server-viewer
+  namespace: llm-hosting
+---
+# Grant read-only access using the built-in 'view' ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: openshift-mcp-server-viewer-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: openshift-mcp-server-viewer
+    namespace: llm-hosting

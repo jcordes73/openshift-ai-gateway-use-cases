@@ -1,0 +1,50 @@
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: insights-mcp-server
+  namespace: llm-hosting
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: insights-mcp-server
+  defaults:
+    when:
+      - predicate: "!request.path.contains('/.well-known')"
+    rules:
+      authentication:
+        'keycloak':
+          jwt:
+            issuerUrl: https://keycloak-mcp.${OPENSHIFT_APPS_DOMAIN}/realms/mcp
+      authorization:
+        'tool-access-check':
+          when:
+            - predicate: "request.headers.exists(h, h == 'x-mcp-toolname')"
+          patternMatching:
+            patterns:
+              - predicate: |
+                  ('tool:' + request.headers['x-mcp-toolname']) in (has(auth.identity.resource_access) && auth.identity.resource_access.exists(p, p == request.headers['x-mcp-servername']) ? auth.identity.resource_access[request.headers['x-mcp-servername']].roles : [])
+        'prompt-access-check':
+          when:
+            - predicate: "request.headers.exists(h, h == 'x-mcp-promptname')"
+          patternMatching:
+            patterns:
+              - predicate: |
+                  ('prompt:' + request.headers['x-mcp-promptname']) in (has(auth.identity.resource_access) && auth.identity.resource_access.exists(p, p == request.headers['x-mcp-servername']) ? auth.identity.resource_access[request.headers['x-mcp-servername']].roles : [])
+      response:
+        unauthenticated:
+          code: 401
+          body:
+            value: |
+              {
+                "error": "Unauthorized",
+                "message": "MCP Access denied: Authentication required."
+              }
+        unauthorized:
+          code: 403
+          body:
+            value: |
+              {
+                "error": "Forbidden",
+                "message": "MCP Access denied: Insufficient permissions."
+              }

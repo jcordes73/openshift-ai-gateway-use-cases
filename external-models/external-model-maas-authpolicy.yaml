@@ -1,0 +1,15 @@
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSAuthPolicy
+metadata:
+  annotations:
+    openshift.io/display-name: ${EXTERNAL_MODEL}
+  resourceVersion: '286193'
+  name: ${EXTERNAL_MODEL}
+  namespace: models-as-a-service
+spec:
+  modelRefs:
+    - name: ${EXTERNAL_MODEL}
+      namespace: llm-hosting
+  subjects:
+    groups:
+      - name: rhods-admins

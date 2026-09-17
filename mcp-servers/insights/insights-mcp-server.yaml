@@ -1,0 +1,31 @@
+apiVersion: mcp.x-k8s.io/v1alpha1
+kind: MCPServer
+metadata:
+  annotations:
+    mcp.opendatahub.io/catalog-server: insights-mcp-server
+    mcp.opendatahub.io/display-name: insights-mcp-server
+  name: insights-mcp-server
+  namespace: llm-hosting
+spec:
+  config:
+    env:
+    - name: LIGHTSPEED_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          key: client-id
+          name: insights-credentials
+    - name: LIGHTSPEED_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          key: client-secret
+          name: insights-credentials
+    arguments:
+    - http
+    - --host
+    - 0.0.0.0
+    path: /mcp
+    port: 8000
+  source:
+    containerImage:
+      ref: ghcr.io/redhatinsights/red-hat-lightspeed-mcp:latest
+    type: ContainerImage

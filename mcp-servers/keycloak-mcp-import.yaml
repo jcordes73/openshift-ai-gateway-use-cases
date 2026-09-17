@@ -1,0 +1,283 @@
+apiVersion: k8s.keycloak.org/v2beta1
+kind: KeycloakRealmImport
+metadata:
+  name: mcp
+  namespace: redhat-ods-applications
+spec:
+  keycloakCRName: keycloak-rhoai
+  realm:
+    realm: mcp
+    id: mcp
+    enabled: true
+    sslRequired: none
+    registrationAllowed: false
+    loginWithEmailAllowed: true
+    duplicateEmailsAllowed: false
+    resetPasswordAllowed: false
+    editUsernameAllowed: false
+    bruteForceProtected: true
+    accessTokenLifespan: 1800
+    ssoSessionMaxLifespan: 1800
+    roles:
+      realm:
+        - name: mcp-user
+          description: Basic MCP user role
+    groups:
+    - name: development
+      description: ""
+      path: /development
+      subGroups: []
+      attributes: {}
+      realmRoles: []
+      clientRoles:
+        llm-hosting/insights-mcp-server:
+          - tool:image-builder__get_composes
+          - tool:image-builder__get_distributions
+          - tool:planning__get_relevant_rhel_lifecycle
+          - tool:image-builder__get_compose_details
+          - tool:planning__get_relevant_upcoming
+          - tool:image-builder__get_org_id
+          - tool:image-builder__get_blueprint_details
+          - tool:planning__get_relevant_appstreams
+          - tool:planning__get_rhel_lifecycle
+          - tool:planning__get_upcoming_changes
+          - tool:image-builder__get_openapi
+          - tool:planning__get_appstreams_lifecycle
+          - tool:image-builder__get_blueprints
+    - name: operations
+      description: ""
+      path: /operations
+      subGroups: []
+      attributes: {}
+      realmRoles: []
+      clientRoles:
+        llm-hosting/insights-mcp-server:
+          - tool:inventory__get_host_system_profile
+          - tool:rhsm__get_activation_keys
+          - tool:inventory__load_inventory_dashboard
+          - tool:rhsm__get_activation_key
+          - tool:inventory__list_workspaces
+          - tool:content-sources__list_repositories
+          - tool:rbac__get_all_access
+          - tool:inventory__list_workspace_hosts
+          - tool:inventory__get_workspace
+          - tool:inventory__get_host_tags
+          - tool:inventory__get_host_details
+          - tool:inventory__list_hosts
+          - tool:inventory__find_host_by_name
+          - tool:get_mcp_version
+        llm-hosting/openshift-mcp-server:
+          - tool:nodes_stats_summary
+          - tool:events_list
+          - tool:pods_list_in_namespace
+          - tool:nodes_log
+          - tool:pods_get
+          - tool:nodes_top
+          - tool:pods_list
+          - tool:namespaces_list
+          - prompt:cluster-health-check
+    - name: security
+      description: ""
+      path: /security
+      subGroups: []
+      attributes: {}
+      realmRoles: []
+      clientRoles:
+        llm-hosting/insights-mcp-server:
+          - tool:advisor__get_recommendations_stats
+          - tool:vulnerability__explain_cves
+          - tool:vulnerability__get_openapi
+          - tool:advisor__get_active_rules
+          - tool:advisor__get_hosts_hitting_a_rule
+          - tool:vulnerability__get_systems
+          - tool:vulnerability__get_cve
+          - tool:vulnerability__get_system_cves
+          - tool:content-sources__list_repositories
+          - tool:rbac__get_all_access
+          - tool:advisor__get_rule_by_text_search
+          - tool:advisor__get_rule_from_node_id
+          - tool:advisor__get_hosts_details_for_rule
+          - tool:vulnerability__get_cves
+          - tool:vulnerability__load_cve_dashboard
+          - tool:vulnerability__get_cve_systems
+          - tool:get_mcp_version
+          - tool:advisor__get_rule_details
+    clients:
+      - clientId: mcp-gateway
+        name: MCP Gateway Client
+        enabled: true
+        publicClient: true
+        directAccessGrantsEnabled: true
+        standardFlowEnabled: true
+        implicitFlowEnabled: false
+        redirectUris:
+          - "http://localhost:*"
+          - "http://127.0.0.1:*"
+          - "https://localhost:*"
+        webOrigins:
+          - "*"
+        protocol: openid-connect
+        attributes:
+          pkce.code.challenge.method: S256
+          client.secret.creation.time: "0"
+        defaultClientScopes:
+          - openid
+          - roles
+          - groups
+      - clientId: llm-hosting/insights-mcp-server
+        name: Insights MCP Server Resource
+        enabled: true
+        bearerOnly: true
+        publicClient: false
+        serviceAccountsEnabled: false
+        protocol: openid-connect
+        defaultClientScopes:
+          - openid
+      - clientId: llm-hosting/openshift-mcp-server
+        name: OpenShift MCP Server Resource
+        enabled: true
+        bearerOnly: true
+        publicClient: false
+        serviceAccountsEnabled: false
+        protocol: openid-connect
+        defaultClientScopes:
+          - openid
+    clientScopes:
+      - name: groups
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "true"
+        protocolMappers:
+          - name: groups
+            protocol: openid-connect
+            protocolMapper: oidc-group-membership-mapper
+            consentRequired: false
+            config:
+              full.path: "false"
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: groups
+      - name: roles
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "true"
+        protocolMappers:
+          - name: resource_access
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-client-role-mapper
+            consentRequired: false
+            config:
+              multivalued: "true"
+              userinfo.token.claim: "true"
+              id.token.claim: "true"
+              access.token.claim: "true"
+              claim.name: "resource_access.${client_id}.roles"
+              jsonType.label: String
+    users:
+      - username: developer-user
+        email: developer-user@example.com
+        firstName: John
+        lastName: Doe
+        enabled: true
+        emailVerified: true
+        credentials:
+          - type: password
+            value: developer
+            temporary: false
+        realmRoles:
+          - mcp-user
+        groups:
+          - development
+      - username: operations-user
+        email: operations-user@example.com
+        firstName: John
+        lastName: Doe
+        enabled: true
+        emailVerified: true
+        credentials:
+          - type: password
+            value: operations
+            temporary: false
+        realmRoles:
+          - mcp-user
+        groups:
+          - operations
+      - username: security-user
+        email: security-user@example.com
+        firstName: John
+        lastName: Doe
+        enabled: true
+        emailVerified: true
+        credentials:
+          - type: password
+            value: security
+            temporary: false
+        realmRoles:
+          - mcp-user
+        groups:
+          - security
+    clientScopeMappings:
+      llm-hosting/insights-mcp-server:
+        - client: mcp-gateway
+          roles:
+            - "tool:advisor__get_active_rules"
+            - "tool:advisor__get_hosts_details_for_rule"
+            - "tool:advisor__get_hosts_hitting_a_rule"
+            - "tool:advisor__get_recommendations_stats"
+            - "tool:advisor__get_rule_by_text_search"
+            - "tool:advisor__get_rule_details"
+            - "tool:advisor__get_rule_from_node_id"
+            - "tool:content-sources__list_repositories"
+            - "tool:get_mcp_version"
+            - "tool:image-builder__get_blueprint_details"
+            - "tool:image-builder__get_blueprints"
+            - "tool:image-builder__get_compose_details"
+            - "tool:image-builder__get_composes"
+            - "tool:image-builder__get_distributions"
+            - "tool:image-builder__get_openapi"
+            - "tool:image-builder__get_org_id"
+            - "tool:inventory__find_host_by_name"
+            - "tool:inventory__get_host_details"
+            - "tool:inventory__get_host_system_profile"
+            - "tool:inventory__get_host_tags"
+            - "tool:inventory__get_workspace"
+            - "tool:inventory__list_hosts"
+            - "tool:inventory__list_workspace_hosts"
+            - "tool:inventory__list_workspaces"
+            - "tool:inventory__load_inventory_dashboard"
+            - "tool:planning__get_appstreams_lifecycle"
+            - "tool:planning__get_relevant_appstreams"
+            - "tool:planning__get_relevant_rhel_lifecycle"
+            - "tool:planning__get_relevant_upcoming"
+            - "tool:planning__get_rhel_lifecycle"
+            - "tool:planning__get_upcoming_changes"
+            - "tool:rbac__get_all_access"
+            - "tool:rhsm__get_activation_key"
+            - "tool:rhsm__get_activation_keys"
+            - "tool:vulnerability__explain_cves"
+            - "tool:vulnerability__get_cve"
+            - "tool:vulnerability__get_cve_systems"
+            - "tool:vulnerability__get_cves"
+            - "tool:vulnerability__get_openapi"
+            - "tool:vulnerability__get_system_cves"
+            - "tool:vulnerability__get_systems"
+            - "tool:vulnerability__load_cve_dashboard"
+      llm-hosting/openshift-mcp-server:
+        - client: mcp-gateway
+          roles:
+            - "tool:events_list"
+            - "tool:namespaces_list"
+            - "tool:nodes_log"
+            - "tool:nodes_stats_summary"
+            - "tool:nodes_top"
+            - "tool:pods_get"
+            - "tool:pods_list"
+            - "tool:pods_list_in_namespace"
+            - "tool:pods_log"
+            - "tool:pods_top"
+            - "tool:projects_list"
+            - "tool:resources_get"
+            - "tool:resources_list"
+            - "prompt:cluster-health-check"

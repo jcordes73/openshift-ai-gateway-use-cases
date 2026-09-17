@@ -1,0 +1,12 @@
+apiVersion: mcp.kuadrant.io/v1alpha1
+kind: MCPServerRegistration
+metadata:
+  name: insights-mcp-server
+  namespace: llm-hosting
+spec:
+  prefix: insights_mcp_server_
+  targetRef:
+    group: "gateway.networking.k8s.io"
+    kind: "HTTPRoute"
+    name: "insights-mcp-server"
+    namespace: "llm-hosting"

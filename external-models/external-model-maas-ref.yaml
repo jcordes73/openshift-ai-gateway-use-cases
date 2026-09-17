@@ -1,0 +1,9 @@
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSModelRef
+metadata:
+  name: ${EXTERNAL_MODEL}
+  namespace: llm-hosting
+spec:
+  modelRef:
+    kind: ExternalModel
+    name: ${EXTERNAL_MODEL}
