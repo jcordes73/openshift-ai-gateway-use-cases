@@ -13,3 +13,6 @@ spec:
   subjects:
     groups:
       - name: rhods-admins
+      - name: development
+      - name: operations
+      - name: security

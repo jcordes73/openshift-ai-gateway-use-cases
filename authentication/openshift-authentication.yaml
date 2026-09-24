@@ -1,0 +1,32 @@
+apiVersion: config.openshift.io/v1
+kind: Authentication
+metadata:
+  name: cluster
+spec:
+  type: OIDC
+  webhookTokenAuthenticator: null
+  oidcProviders:
+  - claimMappings:
+      username:
+        claim: preferred_username
+        prefixPolicy: NoPrefix
+      groups:
+        claim: groups
+        prefix: ""
+    issuer:
+      audiences:
+      - openshift-console
+      - openshift-cli
+      issuerURL: ${KEYCLOAK_ISSUER}
+    name: 'keycloak-oidc-server'
+    oidcClients:
+    - clientID: openshift-cli
+      componentName: cli
+      componentNamespace: openshift-console
+    - clientID: openshift-console
+      clientSecret:
+        name: openshift-console
+      componentName: console
+      componentNamespace: openshift-console
+      extraScopes:
+        - profile

@@ -9,7 +9,7 @@ metadata:
   namespace: llm-hosting
 spec:
   distribution:
-    name: rh-dev
+    name: rh
   network:
     port: 8321
   overrideConfig:

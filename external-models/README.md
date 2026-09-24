@@ -22,6 +22,9 @@ cat external-model.yaml | envsubst | oc create -f -
 cat external-model-maas-ref.yaml | envsubst | oc create -f -
 cat external-model-maas-subscription.yaml | envsubst | oc create -f -
 cat external-model-maas-authpolicy.yaml | envsubst | oc create -f -
+oc patch aitenants.maas.opendatahub.io models-as-a-service -n ai-tenants \
+    --type merge \
+    -p "{\"spec\": {\"oidc\": {\"clientId\": \"openshift-console\", \"issuerUrl\": \"${KEYCLOAK_ISSUER}\", \"ttl\": 300}}}"
 ```
 
 Get an **API-KEY** from OpenShift AI and store it and the API endpoint in an environment variable as we will need them later.
@@ -29,7 +32,7 @@ Get an **API-KEY** from OpenShift AI and store it and the API endpoint in an env
 ```bash
 export OPENAI_API_KEY=$(
 curl -sk -X POST \
-  -H "Authorization: Bearer $(oc whoami -t)" \
+  -H "Authorization: Bearer ${OPENSHIFT_ACCESS_TOKEN}" \
   -H "Content-Type: application/json" \
   "https://maas.${OPENSHIFT_APPS_DOMAIN}/maas-api/v1/api-keys" \
   -d "{\"name\": \"${EXTERNAL_MODEL}\", \"description\": \"Key for ${EXTERNAL_MODEL}\", \"expiresIn\": \"30d\", \"subscription\": \"${EXTERNAL_MODEL}\"}" | jq -r '.key')

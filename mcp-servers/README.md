@@ -16,11 +16,7 @@ export INSIGHTS_CLIENT_SECRET=<INSIGHTS_CLIENT_SECRET>
 ```
 Now we can created the **Insights MCP Server**:
 ```bash
-oc create secret generic insights-credentials \
-  --from-literal=client-id=${INSIGHTS_CLIENT_ID} \
-  --from-literal=client-secret=${INSIGHTS_CLIENT_SECRET} \
-  -n llm-hosting
-
+cat insights/insights-credentials-secret.yaml | envsubst | oc create -f -
 oc create -f insights/insights-mcp-server.yaml
 oc create -f insights/insights-mcp-server-httproute.yaml
 oc create -f insights/insights-mcp-server-registration.yaml
@@ -40,10 +36,10 @@ oc create -f openshift/openshift-mcp-server-registration.yaml
 
 Get the Session ID for the MCP Broker
 ```bash
-curl -ks -D mcp_headers -X POST "${MCP_URL}" \
+curl -ks -D mcp_headers "${MCP_URL}" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json,text/event-stream" \
-  -H "Authorization: Bearer $(oc whoami -t)" \
+  -H "Authorization: Bearer ${OPENSHIFT_ACCESS_TOKEN}" \
   -d '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "test-client", "version": "1.0.0"}}}'
   
 SESSION_ID=$(grep -i "mcp-session-id:" mcp_headers | cut -d' ' -f2 | tr -d '\r')
@@ -51,7 +47,7 @@ SESSION_ID=$(grep -i "mcp-session-id:" mcp_headers | cut -d' ' -f2 | tr -d '\r')
 
 To get the available tools use the following call
 ```bash
-curl -sk -X POST "${MCP_URL}" \
+curl -sk "${MCP_URL}" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -H "mcp-session-id: ${SESSION_ID}" \
@@ -60,7 +56,7 @@ curl -sk -X POST "${MCP_URL}" \
 ```
 For getting also the available prompts use this call:
 ```bash
-curl -sk -X POST "${MCP_URL}" \
+curl -sk "${MCP_URL}" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -H "mcp-session-id: ${SESSION_ID}"  \
@@ -163,15 +159,7 @@ clientScopeMappings:
         - "tool:insights_mcp_server_vulnerability__get_systems"
         - "tool:insights_mcp_server_vulnerability__load_cve_dashboard"
 ```
-Now we can import the Realm definition into Keycloak
-```bash
-oc create -f keycloak-mcp-import.yaml
-```
-For subsequent steps we need the ```KEYCLOAK_URL``` and the ```KEYCLOAK_ISSUER``` environment variables:
-```bash
-export KEYCLOAK_URL="https://keycloak-rhoai.${OPENSHIFT_APPS_DOMAIN}"
-export KEYCLOAK_ISSUER="${KEYCLOAK_URL}/realms/mcp"
-```
+
 To enable OAUth authentication we need to deploy a ```Kuadrant``` CR, patch the existing ```MCPGatewayExtension``` and create an ```AuthPolicy``` for the **MCP Gateway**.
 ```bash
 oc create -f mcp-gateway-kuadrant.yaml
@@ -198,7 +186,7 @@ cat openshift/openshift-mcp-server-authpolicy.yaml | envsubst | oc create -f -
 
 To verify authentication use these calls:
 ```bash
-TOKEN=$(curl -sk -X POST "${KEYCLOAK_ISSUER}/protocol/openid-connect/token" \
+TOKEN=$(curl -sk "${KEYCLOAK_ISSUER}/protocol/openid-connect/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=password" \
   -d "client_id=mcp-gateway" \
@@ -206,7 +194,7 @@ TOKEN=$(curl -sk -X POST "${KEYCLOAK_ISSUER}/protocol/openid-connect/token" \
   -d "password=operations" \
   -d "scope=openid groups roles" | jq -r '.access_token')
 
-curl -sk -D mcp_headers -X POST "https://${MCP_HOSTNAME}/mcp" \
+curl -sk -D mcp_headers "${MCP_URL}" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -H "Authorization: Bearer ${TOKEN}" \
@@ -221,14 +209,16 @@ curl -sk -D mcp_headers -X POST "https://${MCP_HOSTNAME}/mcp" \
     }
   }'
   ```
+Now you can also list all tools available
+```bash
+MCP_SESSION_ID=$(grep -i "mcp-session-id:" mcp_headers | cut -d' ' -f2 | tr -d '\r')
 
-> ℹ️ 
-> Please note that before introducing the authentication policies we have used the OpenShift user to authenticate while now we are using a user that is defined in **Keycloak**.
+curl -sk "${MCP_URL}"   -H "Content-Type: application/json"   -H "Accept: application/json, text/event-stream"   -H "Authorization: Bearer ${TOKEN}"   -H "mcp-session-id: ${MCP_SESSION_ID}"   -d '{"jsonrpc": "2.0", "id": 2, "method": "tools/list"}' | jq -r '.result.tools[].name'
+```
 
 ## Authorization
 
 Now it is time to implement authorization in addition to authentication.
-
 ```bash
 cat mcp-gateway-authz-policy.yaml | envsubst | oc create -f -
 ```
@@ -243,9 +233,9 @@ Each of those groups has access to a different set of tools provided by the MCP 
 
 ### Unauthorized
 
-To test authentication we will authenticate as a user belonging to the **development** group. This group doesn't have access to the **rbac__get_all_access** tool provided by the Insights MCP server, access is only available for members of the **security** group. 
+To test authentication we will authenticate as a user belonging to the **development** group. This group doesn't have access to the **rbac__get_caller_access** tool provided by the Insights MCP server, access is only available for members of the **security** group. 
 ```bash
-TOKEN=$(curl -sk -X POST "${KEYCLOAK_ISSUER}/protocol/openid-connect/token" \
+TOKEN=$(curl -sk "${KEYCLOAK_ISSUER}/protocol/openid-connect/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=password" \
   -d "client_id=mcp-gateway" \
@@ -258,20 +248,20 @@ curl -sk -D mcp_headers -X POST "${MCP_URL}" \
   -H "Authorization: Bearer ${TOKEN}" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}'
 
-SESSION=$(grep -i "mcp-session-id:" mcp_headers | cut -d' ' -f2 | tr -d '\r')
+MCP_SESSION_ID=$(grep -i "mcp-session-id:" mcp_headers | cut -d' ' -f2 | tr -d '\r')
 
-curl -sk -X POST "${MCP_URL}" \
+curl -sk "${MCP_URL}" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -H "Authorization: Bearer ${TOKEN}" \
-  -H "mcp-session-id: ${SESSION_ID}" \
+  -H "mcp-session-id: ${MCP_SESSION_ID}" \
   -d '{"jsonrpc": "2.0", "id": 2, "method": "tools/list"}'
 
-curl -sk -X POST "https://${MCP_HOSTNAME}/mcp" \
+curl -sk "${MCP_URL}" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer ${TOKEN}" \
-  -H "mcp-session-id: ${SESSION}" \
-  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"insights_mcp_server_rbac__get_all_access"}}'
+  -H "mcp-session-id: ${MCP_SESSION_ID}" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"insights_mcp_server_rbac__get_caller_access"}}'
 ```
 
 ### Authorized
@@ -279,7 +269,7 @@ curl -sk -X POST "https://${MCP_HOSTNAME}/mcp" \
 Now we will test with a member of the **security** group.
 
 ```bash
-TOKEN=$(curl -sk -X POST "${KEYCLOAK_ISSUER}/protocol/openid-connect/token" \
+TOKEN=$(curl -sk "${KEYCLOAK_ISSUER}/protocol/openid-connect/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=password" \
   -d "client_id=mcp-gateway" \
@@ -287,34 +277,34 @@ TOKEN=$(curl -sk -X POST "${KEYCLOAK_ISSUER}/protocol/openid-connect/token" \
   -d "password=security" \
   -d "scope=openid groups roles" | jq -r '.access_token')
 
-curl -sk -D mcp_headers -X POST "https://${MCP_HOSTNAME}/mcp" \
+curl -sk -D mcp_headers "${MCP_URL}" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer ${TOKEN}" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}'
 
-SESSION=$(grep -i "mcp-session-id:" mcp_headers | cut -d' ' -f2 | tr -d '\r')
+MCP_SESSION_ID=$(grep -i "mcp-session-id:" mcp_headers | cut -d' ' -f2 | tr -d '\r')
 
-curl -sk -X POST "${MCP_URL}" \
+curl -sk "${MCP_URL}" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -H "Authorization: Bearer ${TOKEN}" \
-  -H "mcp-session-id: ${SESSION_ID}" \
-  -d '{"jsonrpc": "2.0", "id": 2, "method": "tools/list"}'
+  -H "mcp-session-id: ${MCP_SESSION_ID}" \
+  -d '{"jsonrpc": "2.0", "id": 2, "method": "tools/list"}' | jq
 
-curl -sk -X POST "${MCP_URL}" \
+curl -sk "${MCP_URL}" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer ${TOKEN}" \
-  -H "mcp-session-id: ${SESSION}" \
-  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"insights_mcp_server_rbac__get_all_access"}}' \
-  | grep '^data: ' | sed 's/^data: //' | jq '.'
-``
+  -H "mcp-session-id: ${MCP_SESSION_ID}" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"insights_mcp_server_rbac__get_caller_access"}}' \
+  | | yq -o json '.data'
+```
 
 ## Registration of Tools in Apicurio Registry
 
 TODO This section needs to be revisited once entire MCP Servers can be registered in **Apicurio Registry**.
 
 ```bash
-TOKEN=$(curl -sk -X POST "${KEYCLOAK_ISSUER}/protocol/openid-connect/token" \
+TOKEN=$(curl -sk "${KEYCLOAK_ISSUER}/protocol/openid-connect/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=password" \
   -d "client_id=mcp-gateway" \
